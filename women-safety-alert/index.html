@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Women Safety Alert</title>
+  <style>
+    /* ── CSS Custom Properties ─────────────────────────────────────── */
+    :root {
+      --clr-primary:   #c0392b;   /* deep red – SOS */
+      --clr-primary-h: #96281b;   /* hover */
+      --clr-accent:    #e74c3c;
+      --clr-bg:        #fff;
+      --clr-surface:   #f8f8f8;
+      --clr-border:    #ddd;
+      --clr-text:      #1a1a1a;   /* contrast ≥ 4.5:1 on white */
+      --clr-muted:     #555;
+      --clr-success:   #27ae60;
+      --clr-warn:      #e67e22;
+      --clr-danger:    #c0392b;
+      --nav-h:         60px;
+      --radius:        12px;
+      --transition:    0.2s ease;
+    }
+
+    /* ── Reset & Base ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; background: var(--clr-bg); color: var(--clr-text); }
+    body { display: flex; flex-direction: column; max-width: 600px; margin: 0 auto; }
+
+    /* ── App Header ────────────────────────────────────────────────── */
+    #app-header {
+      background: var(--clr-primary);
+      color: #fff;
+      text-align: center;
+      padding: 14px 16px 10px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+
+    /* ── Simulated Location Banner ─────────────────────────────────── */
+    #sim-banner {
+      display: none;
+      background: var(--clr-warn);
+      color: #fff;
+      text-align: center;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    #sim-banner.visible { display: block; }
+
+    /* ── Storage Warning Banner ────────────────────────────────────── */
+    #storage-warn {
+      display: none;
+      background: #7f8c8d;
+      color: #fff;
+      text-align: center;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    #storage-warn.visible { display: block; }
+
+    /* ── Tab Panels ────────────────────────────────────────────────── */
+    #tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px calc(var(--nav-h) + 16px);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Bottom Navigation ─────────────────────────────────────────── */
+    #bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 600px;
+      height: var(--nav-h);
+      background: var(--clr-bg);
+      border-top: 1px solid var(--clr-border);
+      display: flex;
+      z-index: 100;
+    }
+    .nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.7rem;
+      color: var(--clr-muted);
+      padding: 6px 0;
+      transition: color var(--transition);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .nav-btn .icon { font-size: 1.4rem; line-height: 1; }
+    .nav-btn.active { color: var(--clr-primary); font-weight: 700; }
+    .nav-btn:focus-visible { outline: 2px solid var(--clr-primary); outline-offset: -2px; }
+
+    /* ── Home Tab ──────────────────────────────────────────────────── */
+    #tab-home {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      padding-top: 32px;
+    }
+    #tab-home h2 { font-size: 1.1rem; color: var(--clr-muted); text-align: center; }
+
+    /* SOS Button – min 120×120px touch target */
+    #sos-btn {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: var(--clr-primary);
+      color: #fff;
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      border: 6px solid var(--clr-primary-h);
+      box-shadow: 0 6px 24px rgba(192,57,43,0.45);
+      cursor: pointer;
+      transition: transform var(--transition), box-shadow var(--transition);
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    #sos-btn:hover  { background: var(--clr-primary-h); transform: scale(1.04); }
+    #sos-btn:active { transform: scale(0.97); box-shadow: 0 2px 10px rgba(192,57,43,0.3); }
+    #sos-btn:focus-visible { outline: 3px solid var(--clr-accent); outline-offset: 4px; }
+
+    /* Hold progress ring */
+    #hold-ring {
+      position: absolute;
+      width: 172px;
+      height: 172px;
+      border-radius: 50%;
+      border: 5px solid transparent;
+      border-top-color: #fff;
+      animation: spin 3s linear;
+      display: none;
+      pointer-events: none;
+    }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .sos-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+
+    #sos-hint { font-size: 0.8rem; color: var(--clr-muted); text-align: center; }
+    #location-status { font-size: 0.82rem; color: var(--clr-muted); text-align: center; }
+    #no-contacts-warn {
+      display: none;
+      background: #fdecea;
+      border: 1px solid var(--clr-danger);
+      color: var(--clr-danger);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 0.88rem;
+      text-align: center;
+      width: 100%;
+    }
+    #no-contacts-warn.visible { display: block; }
+
+    /* ── Alert Ready Banner ────────────────────────────────────────── */
+    #alert-ready-banner {
+      display: none;
+      background: var(--clr-success);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-align: center;
+      width: 100%;
+      animation: fadeIn 0.3s ease;
+    }
+    #alert-ready-banner.visible { display: block; }
+    #alert-ready-banner .banner-sub {
+      font-size: 0.8rem;
+      font-weight: 400;
+      margin-top: 4px;
+      opacity: 0.9;
+    }
+
+    /* ── Contacts Tab ──────────────────────────────────────────────── */
+    #tab-contacts h2 { font-size: 1.15rem; margin-bottom: 16px; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.88rem; font-weight: 600; margin-bottom: 4px; }
+    .form-group input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--clr-border);
+      border-radius: 8px;
+      font-size: 1rem;
+      color: var(--clr-text);
+      background: var(--clr-bg);
+      transition: border-color var(--transition);
+    }
+    .form-group input:focus { outline: none; border-color: var(--clr-primary); }
+    .field-error { display: none; color: var(--clr-danger); font-size: 0.8rem; margin-top: 4px; }
+    .field-error.visible { display: block; }
+
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      background: var(--clr-primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+    .btn-primary:hover { background: var(--clr-primary-h); }
+    .btn-primary:focus-visible { outline: 2px solid var(--clr-accent); outline-offset: 2px; }
+
+    #contact-list { list-style: none; margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .contact-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+    }
+    .contact-info .contact-name { font-weight: 700; font-size: 0.95rem; }
+    .contact-info .contact-phone { font-size: 0.82rem; color: var(--clr-muted); margin-top: 2px; }
+    .btn-delete {
+      background: none;
+      border: 1.5px solid var(--clr-danger);
+      color: var(--clr-danger);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background var(--transition), color var(--transition);
+    }
+    .btn-delete:hover { background: var(--clr-danger); color: #fff; }
+    #no-contacts-msg { color: var(--clr-muted); font-size: 0.9rem; text-align: center; padding: 16px 0; }
+
+    /* ── Info Tab ──────────────────────────────────────────────────── */
+    #tab-info h2 { font-size: 1.15rem; margin-bottom: 16px; }
+    .info-section { margin-bottom: 24px; }
+    .info-section h3 { font-size: 1rem; margin-bottom: 10px; color: var(--clr-primary); }
+    .info-section ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .info-section ul li {
+      background: var(--clr-surface);
+      border-left: 4px solid var(--clr-primary);
+      border-radius: 0 8px 8px 0;
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .emergency-item { display: flex; justify-content: space-between; align-items: center; }
+    .emergency-item .e-num { font-weight: 700; font-size: 1rem; color: var(--clr-primary); }
+    .emergency-item .e-desc { font-size: 0.82rem; color: var(--clr-muted); }
+
+    /* ── Settings Tab ──────────────────────────────────────────────── */
+    #tab-settings h2 { font-size: 1.15rem; margin-bottom: 16px; }
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--clr-border);
+      border-radius: 8px;
+      font-size: 1rem;
+      color: var(--clr-text);
+      background: var(--clr-bg);
+      resize: vertical;
+      min-height: 80px;
+      transition: border-color var(--transition);
+    }
+    .form-group textarea:focus { outline: none; border-color: var(--clr-primary); }
+    .char-count { font-size: 0.78rem; color: var(--clr-muted); text-align: right; margin-top: 2px; }
+
+    /* Toggle switch */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--clr-border);
+      margin-bottom: 14px;
+    }
+    .toggle-label { font-size: 0.92rem; font-weight: 600; }
+    .toggle-sub { font-size: 0.78rem; color: var(--clr-muted); margin-top: 2px; }
+    .switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0;
+      background: #ccc; border-radius: 26px;
+      cursor: pointer; transition: background var(--transition);
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 20px; height: 20px;
+      left: 3px; bottom: 3px;
+      background: #fff; border-radius: 50%;
+      transition: transform var(--transition);
+    }
+    .switch input:checked + .slider { background: var(--clr-primary); }
+    .switch input:checked + .slider::before { transform: translateX(22px); }
+    .switch input:focus-visible + .slider { outline: 2px solid var(--clr-accent); }
+
+    .btn-secondary {
+      width: 100%;
+      padding: 12px;
+      background: #fff;
+      color: var(--clr-danger);
+      border: 1.5px solid var(--clr-danger);
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background var(--transition), color var(--transition);
+    }
+    .btn-secondary:hover { background: var(--clr-danger); color: #fff; }
+
+    /* ── Toast ─────────────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      top: 20px;           /* top of screen – does not obscure SOS button */
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a1a1a;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 24px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      z-index: 9999;
+      white-space: nowrap;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      animation: fadeIn 0.2s ease;
+      max-width: 90vw;
+      text-align: center;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(-8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+    /* ── Responsive ────────────────────────────────────────────────── */
+    @media (min-width: 480px) {
+      #sos-btn { width: 180px; height: 180px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- App Header -->
+  <header id="app-header">🛡️ Women Safety Alert</header>
+
+  <!-- Persistent banners -->
+  <div id="sim-banner" role="alert">⚠️ Location unavailable — using simulated location</div>
+  <div id="storage-warn" role="alert">⚠️ Storage unavailable — data will not be saved across sessions</div>
+
+  <!-- Tab Content -->
+  <main id="tab-content">
+
+    <!-- ── Home Tab ─────────────────────────────────────────────── -->
+    <section id="tab-home" class="tab-panel active" role="tabpanel" aria-label="Home">
+      <h2>Tap SOS to send an emergency alert</h2>
+
+      <div class="sos-wrap">
+        <div id="hold-ring" aria-hidden="true"></div>
+        <button id="sos-btn" aria-label="Send SOS alert">SOS</button>
+      </div>
+
+      <p id="sos-hint">Hold 3 seconds for hold-to-alert</p>
+      <p id="location-status">📍 Acquiring location…</p>
+      <div id="no-contacts-warn" role="alert">
+        Please add at least one trusted contact first.
+      </div>
+      <!-- Confirmation banner shown after SOS is triggered -->
+      <div id="alert-ready-banner" role="status" aria-live="polite">
+        ✅ Alert ready to send
+        <div class="banner-sub" id="alert-ready-sub"></div>
+      </div>
+    </section>
+
+    <!-- ── Contacts Tab ─────────────────────────────────────────── -->
+    <section id="tab-contacts" class="tab-panel" role="tabpanel" aria-label="Contacts">
+      <h2>Trusted Contacts</h2>
+
+      <form id="add-contact-form" novalidate>
+        <div class="form-group">
+          <label for="contact-name">Name</label>
+          <input type="text" id="contact-name" placeholder="e.g. Mom" autocomplete="off" />
+          <span class="field-error" id="err-name"></span>
+        </div>
+        <div class="form-group">
+          <label for="contact-phone">Phone Number</label>
+          <input type="tel" id="contact-phone" placeholder="e.g. +1 555 0100" autocomplete="off" />
+          <span class="field-error" id="err-phone"></span>
+        </div>
+        <button type="submit" class="btn-primary">Add Contact</button>
+      </form>
+
+      <ul id="contact-list" aria-label="Saved contacts"></ul>
+    </section>
+
+    <!-- ── Info Tab ─────────────────────────────────────────────── -->
+    <section id="tab-info" class="tab-panel" role="tabpanel" aria-label="Safety Info">
+      <h2>Safety Tips &amp; Emergency Numbers</h2>
+
+      <div class="info-section">
+        <h3>🔒 Safety Tips</h3>
+        <ul>
+          <li>Stay aware of your surroundings and avoid distractions like headphones in unfamiliar areas.</li>
+          <li>Share your travel plans and expected arrival time with a trusted person before you leave.</li>
+          <li>Walk in well-lit, populated areas and avoid shortcuts through isolated routes.</li>
+          <li>Trust your instincts — if something feels wrong, move toward a public place or enter a shop.</li>
+          <li>Keep your phone charged and have emergency contacts saved and easily accessible.</li>
+          <li>If followed, change direction, enter a public building, or call for help loudly.</li>
+          <li>Use this app's SOS button immediately if you feel threatened — don't wait.</li>
+        </ul>
+      </div>
+
+      <div class="info-section">
+        <h3>📞 Emergency Numbers</h3>
+        <ul>
+          <li>
+            <div class="emergency-item">
+              <span class="e-num">112</span>
+              <span class="e-desc">International Emergency (EU &amp; many countries)</span>
+            </div>
+          </li>
+          <li>
+            <div class="emergency-item">
+              <span class="e-num">911</span>
+              <span class="e-desc">Emergency Services (USA &amp; Canada)</span>
+            </div>
+          </li>
+          <li>
+            <div class="emergency-item">
+              <span class="e-num">1091</span>
+              <span class="e-desc">Women's Helpline (India)</span>
+            </div>
+          </li>
+          <li>
+            <div class="emergency-item">
+              <span class="e-num">100</span>
+              <span class="e-desc">Police (India)</span>
+            </div>
+          </li>
+          <li>
+            <div class="emergency-item">
+              <span class="e-num">999</span>
+              <span class="e-desc">Emergency Services (UK)</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ── Settings Tab ─────────────────────────────────────────── -->
+    <section id="tab-settings" class="tab-panel" role="tabpanel" aria-label="Settings">
+      <h2>Settings</h2>
+
+      <form id="settings-form" novalidate>
+        <div class="form-group">
+          <label for="setting-name">Your Name</label>
+          <input type="text" id="setting-name" placeholder="e.g. Sarah" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="setting-msg">Custom Alert Message <span style="font-weight:400;color:var(--clr-muted)">(max 100 chars)</span></label>
+          <textarea id="setting-msg" maxlength="100" placeholder="e.g. I need help, please call me."></textarea>
+          <div class="char-count"><span id="msg-char-count">0</span>/100</div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Hold-to-Alert</div>
+            <div class="toggle-sub">Hold SOS button 3 seconds to trigger alert</div>
+          </div>
+          <label class="switch" aria-label="Enable hold-to-alert">
+            <input type="checkbox" id="setting-hold" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn-primary">Save Settings</button>
+      </form>
+
+      <button id="clear-data-btn" class="btn-secondary">Clear All Data</button>
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav id="bottom-nav" role="navigation" aria-label="Main navigation">
+    <button class="nav-btn active" data-tab="home" aria-label="Home tab">
+      <span class="icon">🏠</span>Home
+    </button>
+    <button class="nav-btn" data-tab="contacts" aria-label="Contacts tab">
+      <span class="icon">👥</span>Contacts
+    </button>
+    <button class="nav-btn" data-tab="info" aria-label="Info tab">
+      <span class="icon">ℹ️</span>Info
+    </button>
+    <button class="nav-btn" data-tab="settings" aria-label="Settings tab">
+      <span class="icon">⚙️</span>Settings
+    </button>
+  </nav>
+
+
+  <script>
+  /* ================================================================
+   * StorageModule — namespaced localStorage wrapper
+   * ================================================================ */
+  const StorageModule = (function () {
+    const KEY_CONTACTS = 'wsa_contacts';
+    const KEY_SETTINGS = 'wsa_settings';
+    let _unavailable = false;
+
+    function _read(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        _unavailable = true;
+        return null;
+      }
+    }
+
+    function _write(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) {
+        _unavailable = true;
+      }
+    }
+
+    /** @returns {Array<{id:string,name:string,phone:string}>} */
+    function getContacts() {
+      return _read(KEY_CONTACTS) || [];
+    }
+
+    /** @param {Array} list */
+    function saveContacts(list) {
+      _write(KEY_CONTACTS, list);
+    }
+
+    /** @returns {{userName:string,customMessage:string,holdToAlertEnabled:boolean}} */
+    function getSettings() {
+      return Object.assign(
+        { userName: '', customMessage: '', holdToAlertEnabled: true },
+        _read(KEY_SETTINGS) || {}
+      );
+    }
+
+    /** @param {{userName:string,customMessage:string,holdToAlertEnabled:boolean}} obj */
+    function saveSettings(obj) {
+      _write(KEY_SETTINGS, obj);
+    }
+
+    function clearAll() {
+      try {
+        localStorage.removeItem(KEY_CONTACTS);
+        localStorage.removeItem(KEY_SETTINGS);
+      } catch (e) { /* ignore */ }
+    }
+
+    return { getContacts, saveContacts, getSettings, saveSettings, clearAll,
+             get unavailable() { return _unavailable; } };
+  })();
+
+  /* ================================================================
+   * UIModule — DOM helpers, toast, tab switching, contact rendering
+   * ================================================================ */
+  const UIModule = (function () {
+    /**
+     * Show a tab panel and update nav button active states.
+     * @param {'home'|'contacts'|'info'|'settings'} tabName
+     */
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-panel').forEach(function (panel) {
+        panel.classList.toggle('active', panel.id === 'tab-' + tabName);
+      });
+      document.querySelectorAll('.nav-btn').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+      });
+    }
+
+    /**
+     * Display a fixed-position toast message.
+     * @param {string} message
+     * @param {number} [ms=3000]
+     */
+    function showToast(message, ms) {
+      ms = ms || 3000;
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(function () {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, ms);
+    }
+
+    /**
+     * Show an inline field error.
+     * @param {HTMLElement} el  — the .field-error span
+     * @param {string} message
+     */
+    function showWarning(el, message) {
+      el.textContent = message;
+      el.classList.add('visible');
+    }
+
+    /** Clear an inline field error. */
+    function clearWarning(el) {
+      el.textContent = '';
+      el.classList.remove('visible');
+    }
+
+    /**
+     * Render the contact list into #contact-list.
+     * @param {Array<{id:string,name:string,phone:string}>} list
+     */
+    function renderContacts(list) {
+      const ul = document.getElementById('contact-list');
+      ul.innerHTML = '';
+      if (!list || list.length === 0) {
+        const li = document.createElement('li');
+        li.id = 'no-contacts-msg';
+        li.textContent = 'No contacts saved yet.';
+        ul.appendChild(li);
+        return;
+      }
+      list.forEach(function (contact) {
+        const li = document.createElement('li');
+        li.className = 'contact-item';
+        li.dataset.id = contact.id;
+        li.innerHTML =
+          '<div class="contact-info">' +
+            '<div class="contact-name">' + _esc(contact.name) + '</div>' +
+            '<div class="contact-phone">' + _esc(contact.phone) + '</div>' +
+          '</div>' +
+          '<button class="btn-delete" data-id="' + _esc(contact.id) + '" aria-label="Delete ' + _esc(contact.name) + '">Delete</button>';
+        ul.appendChild(li);
+      });
+    }
+
+    /** Escape HTML special chars to prevent XSS. */
+    function _esc(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    return { showTab, showToast, showWarning, clearWarning, renderContacts };
+  })();
+
+  /* ================================================================
+   * LocationModule — high-accuracy real-time geolocation
+   *
+   * Strategy:
+   *  - init()      : background watchPosition keeps _coords fresh.
+   *  - fetchNow(cb): called at SOS time.
+   *      1. Tries high-accuracy GPS (timeout 12 s, maximumAge 0).
+   *      2. On TIMEOUT or POSITION_UNAVAILABLE: retries once with
+   *         lower accuracy (network/IP) so we still get a real fix.
+   *      3. Only falls back to simulated coords on PERMISSION_DENIED
+   *         or when the Geolocation API is absent entirely.
+   * ================================================================ */
+  const LocationModule = (function () {
+    // Simulated fallback — only used when permission is explicitly denied
+    // or the Geolocation API is unavailable in the browser.
+    var SIMULATED = { lat: 28.6139, lng: 77.2090, simulated: true }; // New Delhi
+
+    var _coords = Object.assign({}, SIMULATED);
+    var _watchId = null;
+
+    /* ── private helpers ─────────────────────────────────────────── */
+
+    function _applySuccess(pos) {
+      _coords = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        simulated: false
+      };
+      _updateUI();
+    }
+
+    function _applySimulated() {
+      _coords = Object.assign({}, SIMULATED);
+      _updateUI();
+    }
+
+    function _updateUI() {
+      var statusEl = document.getElementById('location-status');
+      var bannerEl = document.getElementById('sim-banner');
+      if (!statusEl || !bannerEl) return;
+      if (_coords.simulated) {
+        statusEl.textContent = '📍 Location: simulated (permission denied)';
+        bannerEl.classList.add('visible');
+      } else {
+        statusEl.textContent =
+          '📍 ' + _coords.lat.toFixed(5) + ', ' + _coords.lng.toFixed(5);
+        bannerEl.classList.remove('visible');
+      }
+    }
+
+    /* ── public API ──────────────────────────────────────────────── */
+
+    /**
+     * Start a background watchPosition to keep _coords current.
+     * Called once on DOMContentLoaded.
+     */
+    function init() {
+      if (!navigator.geolocation) { _applySimulated(); return; }
+      _watchId = navigator.geolocation.watchPosition(
+        _applySuccess,
+        function (err) {
+          // Only mark simulated on hard permission denial from the watch
+          if (err.code === 1 /* PERMISSION_DENIED */) _applySimulated();
+          // TIMEOUT / POSITION_UNAVAILABLE from the watch are transient — ignore
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+      );
+    }
+
+    /**
+     * Fetch the freshest possible real-world position and call cb(coords).
+     *
+     * Attempt 1 — high-accuracy GPS (maximumAge: 0, timeout: 12 s)
+     *   Success  → cb(real coords)
+     *   PERMISSION_DENIED → cb(simulated)          [no retry]
+     *   TIMEOUT / UNAVAILABLE → Attempt 2
+     *
+     * Attempt 2 — network/IP fallback (enableHighAccuracy: false, timeout: 8 s)
+     *   Success  → cb(real coords, lower accuracy)
+     *   Any error → cb(simulated)
+     *
+     * @param {function({lat:number, lng:number, simulated:boolean})} cb
+     */
+    function fetchNow(cb) {
+      if (!navigator.geolocation) {
+        _applySimulated();
+        cb(_coords);
+        return;
+      }
+
+      var statusEl = document.getElementById('location-status');
+      if (statusEl) statusEl.textContent = '📍 Acquiring location…';
+
+      // ── Attempt 1: high-accuracy GPS ────────────────────────────
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          _applySuccess(pos);
+          cb(_coords);
+        },
+        function (err) {
+          if (err.code === 1 /* PERMISSION_DENIED */) {
+            // User explicitly denied — use simulated, no retry
+            _applySimulated();
+            cb(_coords);
+            return;
+          }
+
+          // TIMEOUT (3) or POSITION_UNAVAILABLE (2) — retry with network location
+          if (statusEl) statusEl.textContent = '📍 GPS unavailable, trying network…';
+
+          // ── Attempt 2: network/IP-based location ─────────────────
+          navigator.geolocation.getCurrentPosition(
+            function (pos) {
+              _applySuccess(pos);
+              cb(_coords);
+            },
+            function () {
+              // Both attempts failed — use simulated as last resort
+              _applySimulated();
+              cb(_coords);
+            },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+          );
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      );
+    }
+
+    /** Return the most recently cached coords (may be simulated). */
+    function getCoords() { return _coords; }
+
+    /** True when the current coords are the simulated fallback. */
+    function isSimulated() { return _coords.simulated; }
+
+    return { init, fetchNow, getCoords, isSimulated };
+  })();
+
+  /* ================================================================
+   * ContactModule — CRUD for trusted contacts
+   * ================================================================ */
+  const ContactModule = (function () {
+    /**
+     * Validate name and phone.
+     * @returns {{ok:boolean, errors:string[]}}
+     */
+    function validate(name, phone) {
+      const errors = [];
+      if (!name || name.trim().length === 0) {
+        errors.push('Name is required.');
+      }
+      if (!phone || phone.trim().length === 0) {
+        errors.push('Phone number is required.');
+      } else {
+        const digits = phone.replace(/[^0-9]/g, '');
+        const validChars = /^[0-9 +\-]+$/.test(phone.trim());
+        if (!validChars) {
+          errors.push('Phone may only contain digits, spaces, +, and -.');
+        } else if (digits.length < 7 || digits.length > 15) {
+          errors.push('Phone must contain 7–15 digits.');
+        }
+      }
+      return { ok: errors.length === 0, errors: errors };
+    }
+
+    /**
+     * Add a new contact.
+     * @returns {{ok:boolean, error?:string}}
+     */
+    function add(name, phone) {
+      const result = validate(name, phone);
+      if (!result.ok) return { ok: false, error: result.errors[0] };
+      const contacts = StorageModule.getContacts();
+      const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Date.now().toString() + Math.random().toString(36).slice(2);
+      contacts.push({ id: id, name: name.trim(), phone: phone.trim() });
+      StorageModule.saveContacts(contacts);
+      return { ok: true };
+    }
+
+    function getAll() {
+      return StorageModule.getContacts();
+    }
+
+    function remove(id) {
+      const contacts = StorageModule.getContacts().filter(function (c) { return c.id !== id; });
+      StorageModule.saveContacts(contacts);
+    }
+
+    return { validate, add, getAll, remove };
+  })();
+
+  /* ================================================================
+   * SirenModule — plays an alert siren using Web Audio API
+   * Must be called directly inside a user-gesture handler.
+   * ================================================================ */
+  const SirenModule = (function () {
+    let _ctx = null;
+    let _nodes = [];
+
+    /** Create (or reuse) an AudioContext — must be called in a user gesture. */
+    function _getCtx() {
+      if (!_ctx || _ctx.state === 'closed') {
+        _ctx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (_ctx.state === 'suspended') _ctx.resume();
+      return _ctx;
+    }
+
+    /**
+     * Play a two-tone siren for `durationMs` milliseconds.
+     * @param {number} [durationMs=4000]
+     */
+    function play(durationMs) {
+      durationMs = durationMs || 4000;
+      try {
+        const ctx = _getCtx();
+        const now = ctx.currentTime;
+        const cycleLen = 0.6;          // seconds per hi/lo cycle
+        const cycles = Math.ceil(durationMs / 1000 / cycleLen);
+
+        for (let i = 0; i < cycles; i++) {
+          const t = now + i * cycleLen;
+
+          // Oscillator
+          const osc = ctx.createOscillator();
+          osc.type = 'sawtooth';
+
+          // Frequency sweep: 880 Hz → 440 Hz → 880 Hz per cycle
+          osc.frequency.setValueAtTime(880, t);
+          osc.frequency.linearRampToValueAtTime(440, t + cycleLen / 2);
+          osc.frequency.linearRampToValueAtTime(880, t + cycleLen);
+
+          // Gain envelope (avoid click artefacts)
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0, t);
+          gain.gain.linearRampToValueAtTime(0.6, t + 0.02);
+          gain.gain.setValueAtTime(0.6, t + cycleLen - 0.02);
+          gain.gain.linearRampToValueAtTime(0, t + cycleLen);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(t);
+          osc.stop(t + cycleLen);
+          _nodes.push(osc);
+        }
+      } catch (e) {
+        console.warn('[WSA] Siren unavailable:', e.message);
+      }
+    }
+
+    /** Stop all playing siren nodes immediately. */
+    function stop() {
+      _nodes.forEach(function (n) { try { n.stop(); } catch (_) {} });
+      _nodes = [];
+    }
+
+    return { play, stop };
+  })();
+
+  /* ================================================================
+   * AlertModule — compose and dispatch alert messages
+   * ================================================================ */
+  const AlertModule = (function () {
+    const DEFAULT_MSG = 'I am in danger, please help me.';
+
+    /**
+     * Build the emergency message string.
+     * Format: "I am in danger, please help me. My location: <maps link>"
+     * @param {{lat:number,lng:number}} coords
+     * @param {{userName:string,customMessage:string}} settings
+     * @returns {string}
+     */
+    function buildMessage(coords, settings) {
+      const mapsUrl = 'https://maps.google.com/?q=' + coords.lat + ',' + coords.lng;
+      const distress = (settings.customMessage && settings.customMessage.trim())
+        ? settings.customMessage.trim()
+        : DEFAULT_MSG;
+      return distress + ' My location: ' + mapsUrl;
+    }
+
+    /**
+     * Compose one message string per contact (kept for property tests).
+     * @param {Array} contacts
+     * @param {{lat:number,lng:number,simulated:boolean}} coords
+     * @param {{userName:string,customMessage:string}} settings
+     * @returns {string[]}
+     */
+    function compose(contacts, coords, settings) {
+      const msg = buildMessage(coords, settings);
+      return contacts.map(function () { return msg; });
+    }
+
+    /**
+     * Strip all non-digit characters from a phone number for use in URLs.
+     * @param {string} phone
+     * @returns {string}
+     */
+    function _cleanPhone(phone) {
+      // Keep leading + for international format
+      return phone.trim().replace(/[^\d+]/g, '');
+    }
+
+    /**
+     * Open WhatsApp (app on mobile, Web on desktop) with a pre-filled message.
+     * Falls back to SMS if WhatsApp cannot be opened.
+     * @param {string} phone  — raw phone string from contact
+     * @param {string} message
+     */
+    function _sendViaWhatsApp(phone, message) {
+      const cleanPhone = _cleanPhone(phone);
+      const encodedMsg = encodeURIComponent(message);
+
+      // wa.me deep-link works on mobile (opens app) and desktop (opens WhatsApp Web)
+      const waUrl = 'https://wa.me/' + cleanPhone + '?text=' + encodedMsg;
+
+      // Try opening WhatsApp
+      const waWindow = window.open(waUrl, '_blank');
+
+      // If the browser blocked the popup or returned null, fall back to SMS
+      if (!waWindow) {
+        _sendViaSMS(phone, message);
+      }
+    }
+
+    /**
+     * Open the native SMS app with a pre-filled message.
+     * @param {string} phone
+     * @param {string} message
+     */
+    function _sendViaSMS(phone, message) {
+      const cleanPhone = _cleanPhone(phone);
+      const encodedMsg = encodeURIComponent(message);
+      // iOS uses &body=, Android uses ?body= — the semicolon separator covers both
+      window.location.href = 'sms:' + cleanPhone + '?body=' + encodedMsg;
+    }
+
+    /**
+     * Dispatch the alert to the first saved contact via WhatsApp / SMS.
+     * Logs all contacts to console.
+     * @param {Array<{name:string,phone:string}>} contacts
+     * @param {{lat:number,lng:number,simulated:boolean}} coords
+     * @param {{userName:string,customMessage:string}} settings
+     * @returns {{sent:number, message:string}}
+     */
+    function dispatch(contacts, coords, settings) {
+      const message = buildMessage(coords, settings);
+
+      // Log all contacts to console for debugging
+      contacts.forEach(function (c) {
+        console.log('[WSA Alert → ' + c.name + ' (' + c.phone + ')]\n' + message);
+      });
+
+      // Open WhatsApp/SMS for the first contact (primary recipient)
+      if (contacts.length > 0) {
+        _sendViaWhatsApp(contacts[0].phone, message);
+      }
+
+      return { sent: contacts.length, message: message };
+    }
+
+    return { compose, dispatch, buildMessage };
+  })();
+
+  /* ================================================================
+   * AppInit — bootstrap: wire events, load state, start location
+   * ================================================================ */
+  (function AppInit() {
+    // In-memory app state
+    const state = {
+      activeTab: 'home',
+      holdTimer: null
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+      // ── Load persisted data ──────────────────────────────────────
+      const settings = StorageModule.getSettings();
+      const contacts = ContactModule.getAll();
+
+      // Populate settings form
+      document.getElementById('setting-name').value = settings.userName || '';
+      document.getElementById('setting-msg').value = settings.customMessage || '';
+      document.getElementById('setting-hold').checked = settings.holdToAlertEnabled !== false;
+      document.getElementById('msg-char-count').textContent =
+        (settings.customMessage || '').length;
+
+      // Render contacts
+      UIModule.renderContacts(contacts);
+
+      // Storage unavailable warning
+      if (StorageModule.unavailable) {
+        document.getElementById('storage-warn').classList.add('visible');
+      }
+
+      // ── Start location ───────────────────────────────────────────
+      LocationModule.init();
+
+      // ── Tab navigation ───────────────────────────────────────────
+      document.querySelectorAll('.nav-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const tab = btn.dataset.tab;
+          state.activeTab = tab;
+          UIModule.showTab(tab);
+        });
+      });
+
+      // ── SOS button — click ───────────────────────────────────────
+      const sosBtn = document.getElementById('sos-btn');
+
+      function triggerSOS() {
+        var currentContacts = ContactModule.getAll();
+        var noContactsWarn  = document.getElementById('no-contacts-warn');
+        var alertBanner     = document.getElementById('alert-ready-banner');
+        var alertSub        = document.getElementById('alert-ready-sub');
+
+        if (currentContacts.length === 0) {
+          noContactsWarn.classList.add('visible');
+          alertBanner.classList.remove('visible');
+          return;
+        }
+        noContactsWarn.classList.remove('visible');
+
+        // 1. Play siren immediately — must stay inside the user-gesture call stack
+        SirenModule.play(4000);
+
+        // 2. Fetch a fresh location (triggers permission prompt if not yet granted).
+        //    Falls back to simulated coords if permission is denied or times out.
+        LocationModule.fetchNow(function (coords) {
+          var settings = StorageModule.getSettings();
+
+          // 3. Dispatch alert (WhatsApp / SMS) with the fresh coords
+          var result = AlertModule.dispatch(currentContacts, coords, settings);
+
+          // 4. Show "Alert ready to send" confirmation banner
+          var firstContact = currentContacts[0];
+          var simNote = coords.simulated ? ' ⚠️ simulated location' : '';
+          alertSub.textContent =
+            'Opening WhatsApp for ' + firstContact.name +
+            ' (' + firstContact.phone + ')' + simNote +
+            (currentContacts.length > 1
+              ? ' + ' + (currentContacts.length - 1) + ' more logged'
+              : '');
+          alertBanner.classList.add('visible');
+
+          // Auto-hide banner after 6 seconds
+          setTimeout(function () { alertBanner.classList.remove('visible'); }, 6000);
+
+          // 5. Toast confirmation
+          UIModule.showToast('🚨 Alert ready to send — ' + result.sent + ' contact(s)', 4000);
+        });
+      }
+
+      sosBtn.addEventListener('click', function () {
+        // Prevent double-fire if hold timer already fired
+        if (state._holdFired) { state._holdFired = false; return; }
+        triggerSOS();
+      });
+
+      // ── SOS button — hold-to-alert (3 seconds) ───────────────────
+      const holdRing = document.getElementById('hold-ring');
+
+      sosBtn.addEventListener('pointerdown', function () {
+        const currentSettings = StorageModule.getSettings();
+        if (!currentSettings.holdToAlertEnabled) return;
+        state._holdFired = false;
+        holdRing.style.display = 'block';
+        state.holdTimer = setTimeout(function () {
+          state._holdFired = true;
+          holdRing.style.display = 'none';
+          triggerSOS();
+        }, 3000);
+      });
+
+      function cancelHold() {
+        if (state.holdTimer) {
+          clearTimeout(state.holdTimer);
+          state.holdTimer = null;
+        }
+        holdRing.style.display = 'none';
+      }
+
+      sosBtn.addEventListener('pointerup', cancelHold);
+      sosBtn.addEventListener('pointerleave', cancelHold);
+      sosBtn.addEventListener('pointercancel', cancelHold);
+
+      // ── Contact form submit ──────────────────────────────────────
+      document.getElementById('add-contact-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const nameInput  = document.getElementById('contact-name');
+        const phoneInput = document.getElementById('contact-phone');
+        const errName    = document.getElementById('err-name');
+        const errPhone   = document.getElementById('err-phone');
+
+        UIModule.clearWarning(errName);
+        UIModule.clearWarning(errPhone);
+
+        const validation = ContactModule.validate(nameInput.value, phoneInput.value);
+        if (!validation.ok) {
+          validation.errors.forEach(function (err) {
+            if (err.toLowerCase().includes('name')) UIModule.showWarning(errName, err);
+            else UIModule.showWarning(errPhone, err);
+          });
+          return;
+        }
+
+        ContactModule.add(nameInput.value, phoneInput.value);
+        UIModule.renderContacts(ContactModule.getAll());
+        nameInput.value = '';
+        phoneInput.value = '';
+        UIModule.showToast('Contact added', 2000);
+      });
+
+      // ── Contact list — delete (event delegation) ─────────────────
+      document.getElementById('contact-list').addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-delete');
+        if (!btn) return;
+        ContactModule.remove(btn.dataset.id);
+        UIModule.renderContacts(ContactModule.getAll());
+        UIModule.showToast('Contact removed', 2000);
+      });
+
+      // ── Settings form save ───────────────────────────────────────
+      document.getElementById('settings-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        let customMsg = document.getElementById('setting-msg').value;
+        if (customMsg.length > 100) {
+          customMsg = customMsg.slice(0, 100);
+          document.getElementById('setting-msg').value = customMsg;
+          UIModule.showToast('Message truncated to 100 characters', 3000);
+        }
+        StorageModule.saveSettings({
+          userName: document.getElementById('setting-name').value.trim(),
+          customMessage: customMsg,
+          holdToAlertEnabled: document.getElementById('setting-hold').checked
+        });
+        UIModule.showToast('Settings saved', 2000);
+      });
+
+      // ── Custom message char counter ──────────────────────────────
+      document.getElementById('setting-msg').addEventListener('input', function () {
+        document.getElementById('msg-char-count').textContent = this.value.length;
+      });
+
+      // ── Clear all data ───────────────────────────────────────────
+      document.getElementById('clear-data-btn').addEventListener('click', function () {
+        if (!confirm('Clear all saved contacts and settings?')) return;
+        StorageModule.clearAll();
+        UIModule.renderContacts([]);
+        document.getElementById('setting-name').value = '';
+        document.getElementById('setting-msg').value = '';
+        document.getElementById('setting-hold').checked = true;
+        document.getElementById('msg-char-count').textContent = '0';
+        UIModule.showToast('All data cleared', 2000);
+      });
+    });
+  })();
+  </script>
+</body>
+</html>
+

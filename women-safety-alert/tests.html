@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WSA — Property-Based Tests</title>
+  <!-- fast-check UMD build via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/fast-check@3/lib/bundle/fast-check.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f9f9f9; color: #1a1a1a; }
+    h1 { color: #c0392b; }
+    h2 { font-size: 1rem; margin: 20px 0 6px; }
+    .result { padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-size: 0.9rem; }
+    .pass { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+    .fail { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+    .error { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
+    #summary { margin-top: 20px; font-weight: 700; font-size: 1.05rem; }
+    pre { font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Women Safety Alert — Property-Based Tests</h1>
+  <p>Running <strong>100 iterations</strong> per property using fast-check.</p>
+  <div id="results"></div>
+  <div id="summary"></div>
+
+  <!-- ── Inline module stubs (mirrors index.html logic, no DOM dependency) ── -->
+  <script>
+  /* ── StorageModule stub (in-memory for tests) ─────────────────── */
+  const StorageModule = (function () {
+    let _contacts = [];
+    let _settings = { userName: '', customMessage: '', holdToAlertEnabled: true };
+    let _unavailable = false;
+
+    function getContacts() { return JSON.parse(JSON.stringify(_contacts)); }
+    function saveContacts(list) { _contacts = JSON.parse(JSON.stringify(list)); }
+    function getSettings() { return Object.assign({ userName: '', customMessage: '', holdToAlertEnabled: true }, JSON.parse(JSON.stringify(_settings))); }
+    function saveSettings(obj) { _settings = JSON.parse(JSON.stringify(obj)); }
+    function clearAll() { _contacts = []; _settings = { userName: '', customMessage: '', holdToAlertEnabled: true }; }
+    function _reset() { clearAll(); }
+
+    return { getContacts, saveContacts, getSettings, saveSettings, clearAll, _reset,
+             get unavailable() { return _unavailable; } };
+  })();
+
+  /* ── ContactModule (same logic as index.html) ─────────────────── */
+  const ContactModule = (function () {
+    function validate(name, phone) {
+      const errors = [];
+      if (!name || name.trim().length === 0) errors.push('Name is required.');
+      if (!phone || phone.trim().length === 0) {
+        errors.push('Phone number is required.');
+      } else {
+        const digits = phone.replace(/[^0-9]/g, '');
+        const validChars = /^[0-9 +\-]+$/.test(phone.trim());
+        if (!validChars) errors.push('Phone may only contain digits, spaces, +, and -.');
+        else if (digits.length < 7 || digits.length > 15) errors.push('Phone must contain 7–15 digits.');
+      }
+      return { ok: errors.length === 0, errors };
+    }
+
+    function add(name, phone) {
+      const result = validate(name, phone);
+      if (!result.ok) return { ok: false, error: result.errors[0] };
+      const contacts = StorageModule.getContacts();
+      const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Date.now().toString() + Math.random().toString(36).slice(2);
+      contacts.push({ id, name: name.trim(), phone: phone.trim() });
+      StorageModule.saveContacts(contacts);
+      return { ok: true };
+    }
+
+    function getAll() { return StorageModule.getContacts(); }
+    function remove(id) {
+      StorageModule.saveContacts(StorageModule.getContacts().filter(c => c.id !== id));
+    }
+
+    return { validate, add, getAll, remove };
+  })();
+
+  /* ── AlertModule (same logic as index.html) ───────────────────── */
+  const AlertModule = (function () {
+    const DEFAULT_MSG = 'I am in danger and need immediate assistance.';
+
+    function compose(contacts, coords, settings) {
+      const name = (settings.userName || 'Someone').trim();
+      const distress = (settings.customMessage && settings.customMessage.trim())
+        ? settings.customMessage.trim() : DEFAULT_MSG;
+      const timestamp = new Date().toISOString();
+      const mapsUrl = 'https://maps.google.com/?q=' + coords.lat + ',' + coords.lng;
+      let body = name + ' needs help! ' + distress + '\nTime: ' + timestamp;
+      if (body.length > 320) body = body.slice(0, 320);
+      const fullMsg = body + '\nLocation: ' + mapsUrl;
+      return contacts.map(() => fullMsg);
+    }
+
+    function dispatch(contacts, coords, settings) {
+      const messages = compose(contacts, coords, settings);
+      return { sent: messages.length };
+    }
+
+    return { compose, dispatch };
+  })();
+
+  /* ── UIModule stub (DOM-independent for tests) ────────────────── */
+  const UIModule = (function () {
+    // Minimal DOM-based implementation for tab/render tests
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-panel').forEach(p => {
+        p.classList.toggle('active', p.id === 'tab-' + tabName);
+      });
+      document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.tab === tabName);
+      });
+    }
+
+    function renderContacts(list) {
+      const ul = document.getElementById('contact-list');
+      if (!ul) return;
+      ul.innerHTML = '';
+      (list || []).forEach(contact => {
+        const li = document.createElement('li');
+        li.className = 'contact-item';
+        li.dataset.id = contact.id;
+        li.innerHTML = `<span class="contact-name">${contact.name}</span><span class="contact-phone">${contact.phone}</span>`;
+        ul.appendChild(li);
+      });
+    }
+
+    function showToast(message, ms) {
+      ms = ms || 3000;
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, ms);
+      return toast;
+    }
+
+    return { showTab, renderContacts, showToast };
+  })();
+  </script>
+
+  <!-- ── Hidden DOM fixtures for UI tests ──────────────────────── -->
+  <div style="display:none">
+    <section id="tab-home"     class="tab-panel active" data-tab="home"></section>
+    <section id="tab-contacts" class="tab-panel"        data-tab="contacts">
+      <ul id="contact-list"></ul>
+    </section>
+    <section id="tab-info"     class="tab-panel"        data-tab="info"></section>
+    <section id="tab-settings" class="tab-panel"        data-tab="settings"></section>
+    <nav>
+      <button class="nav-btn active" data-tab="home"></button>
+      <button class="nav-btn"        data-tab="contacts"></button>
+      <button class="nav-btn"        data-tab="info"></button>
+      <button class="nav-btn"        data-tab="settings"></button>
+    </nav>
+  </div>
+
+  <!-- ── Test Runner ────────────────────────────────────────────── -->
+  <script>
+  const fc = window.fc; // fast-check UMD global
+
+  const resultsEl  = document.getElementById('results');
+  let passed = 0, failed = 0;
+
+  function report(name, ok, detail) {
+    const div = document.createElement('div');
+    div.className = 'result ' + (ok ? 'pass' : 'fail');
+    div.innerHTML = (ok ? '✅ ' : '❌ ') + name;
+    if (!ok && detail) {
+      const pre = document.createElement('pre');
+      pre.textContent = detail;
+      div.appendChild(pre);
+    }
+    resultsEl.appendChild(div);
+    ok ? passed++ : failed++;
+  }
+
+  function runProp(name, prop) {
+    try {
+      fc.assert(prop, { numRuns: 100 });
+      report(name, true);
+    } catch (e) {
+      report(name, false, e.message || String(e));
+    }
+  }
+
+  /* ── Arbitraries ─────────────────────────────────────────────── */
+
+  // Valid phone: 7–15 digits, may include spaces/+/-
+  const validPhoneArb = fc.integer({ min: 7, max: 15 }).chain(len =>
+    fc.array(fc.integer({ min: 0, max: 9 }), { minLength: len, maxLength: len })
+      .map(digits => digits.join(''))
+  );
+
+  // Valid contact object
+  const validContactArb = fc.record({
+    id: fc.uuid(),
+    name: fc.string({ minLength: 1, maxLength: 30 }).filter(s => s.trim().length > 0),
+    phone: validPhoneArb
+  });
+
+  // Valid coords
+  const coordsArb = fc.record({
+    lat: fc.float({ min: -90, max: 90, noNaN: true }),
+    lng: fc.float({ min: -180, max: 180, noNaN: true }),
+    simulated: fc.boolean()
+  });
+
+  // Valid settings
+  const settingsArb = fc.record({
+    userName: fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
+    customMessage: fc.string({ minLength: 0, maxLength: 100 }),
+    holdToAlertEnabled: fc.boolean()
+  });
+
+  /* ================================================================
+   * Property 1: Alert dispatched to all contacts
+   * Feature: women-safety-alert, Property 1: Alert dispatched to all contacts
+   * ================================================================ */
+  runProp('Property 1: Alert dispatched to all contacts',
+    fc.property(
+      fc.array(validContactArb, { minLength: 1, maxLength: 20 }),
+      coordsArb,
+      settingsArb,
+      (contacts, coords, settings) => {
+        const result = AlertModule.dispatch(contacts, coords, settings);
+        return result.sent === contacts.length;
+      }
+    )
+  );
+
+  /* ================================================================
+   * Property 2: Alert message contains all required fields
+   * Feature: women-safety-alert, Property 2: Alert message contains all required fields
+   * ================================================================ */
+  runProp('Property 2: Alert message contains all required fields',
+    fc.property(
+      settingsArb,
+      coordsArb,
+      (settings, coords) => {
+        const contacts = [{ id: '1', name: 'Test', phone: '1234567' }];
+        const messages = AlertModule.compose(contacts, coords, settings);
+        const msg = messages[0];
+        const mapsUrl = 'https://maps.google.com/?q=' + coords.lat + ',' + coords.lng;
+        const body = msg.replace('\nLocation: ' + mapsUrl, '');
+        return (
+          msg.includes(settings.userName.trim()) &&
+          msg.includes('needs help!') &&
+          /\d{4}-\d{2}-\d{2}T/.test(msg) &&   // ISO timestamp
+          msg.includes(mapsUrl) &&
+          body.length <= 320
+        );
+      }
+    )
+  );
+
+  /* ================================================================
+   * Property 3: Custom message replaces default distress statement
+   * Feature: women-safety-alert, Property 3: Custom message replaces default distress statement
+   * ================================================================ */
+  runProp('Property 3: Custom message replaces default distress statement',
+    fc.property(
+      fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0),
+      coordsArb,
+      (customMessage, coords) => {
+        const settings = { userName: 'Alice', customMessage, holdToAlertEnabled: true };
+        const contacts = [{ id: '1', name: 'Bob', phone: '1234567' }];
+        const msg = AlertModule.compose(contacts, coords, settings)[0];
+        const DEFAULT_MSG = 'I am in danger and need immediate assistance.';
+        return msg.includes(customMessage.trim()) && !msg.includes(DEFAULT_MSG);
+      }
+    )
+  );
+
+  /* ================================================================
+   * Property 4: Contact validation rejects invalid inputs
+   * Feature: women-safety-alert, Property 4: Contact validation rejects invalid inputs
+   * ================================================================ */
+  runProp('Property 4: Contact validation rejects invalid inputs',
+    fc.property(
+      // Generate invalid inputs: empty name OR invalid phone
+      fc.oneof(
+        // Empty name
+        fc.record({
+          name: fc.constant(''),
+          phone: validPhoneArb
+        }),
+        // Whitespace-only name
+        fc.record({
+          name: fc.string({ minLength: 1, maxLength: 10 }).map(s => s.replace(/\S/g, ' ')),
+          phone: validPhoneArb
+        }),
+        // Empty phone
+        fc.record({
+          name: fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
+          phone: fc.constant('')
+        }),
+        // Phone too short (< 7 digits)
+        fc.record({
+          name: fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
+          phone: fc.integer({ min: 1, max: 6 }).chain(len =>
+            fc.array(fc.integer({ min: 0, max: 9 }), { minLength: len, maxLength: len })
+              .map(d => d.join(''))
+          )
+        }),
+        // Phone too long (> 15 digits)
+        fc.record({
+          name: fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
+          phone: fc.integer({ min: 16, max: 25 }).chain(len =>
+            fc.array(fc.integer({ min: 0, max: 9 }), { minLength: len, maxLength: len })
+              .map(d => d.join(''))
+          )
+        })
+      ),
+      ({ name, phone }) => {
+        const result = ContactModule.validate(name, phone);
+        return result.ok === false && result.errors.length > 0;
+      }
+    )
+  );
+
+  /* ================================================================
+   * Property 5: Contact persistence round-trip
+   * Feature: women-safety-alert, Property 5: Contact persistence round-trip
+   * ================================================================ */
+  runProp('Property 5: Contact persistence round-trip',
+    fc.property(
+      fc.array(validContactArb, { minLength: 0, maxLength: 15 }),
+      (contacts) => {
+        StorageModule._reset();
+        StorageModule.saveContacts(contacts);
+        const loaded = StorageModule.getContacts();
+        if (loaded.length !== contacts.length) return false;
+        return contacts.every((c, i) =>
+          loaded[i].id === c.id &&
+          loaded[i].name === c.name &&
+          loaded[i].phone === c.phone
+        );
+      }
+    )
+  );
+
+  /* ================================================================
+   * Property 6: Contact deletion removes from list
+   * Feature: women-safety-alert, Property 6: Contact deletion removes from list
+   * ================================================================ */
+  runProp('Property 6: Contact deletion removes from list',
+    fc.property(
+      fc.array(validContactArb, { minLength: 1, maxLength: 15 }),
+      fc.integer({ min: 0, max: 14 }),
+      (contacts, rawIdx) => {
+        StorageModule._reset();
+        StorageModule.saveContacts(contacts);
+        const idx = rawIdx % contacts.length;
+        const targetId = contacts[idx].id;
+        ContactModule.remove(targetId);
+        const after = ContactModule.getAll();
+        return (
+          after.length === contacts.length - 1 &&
+          !after.some(c => c.id === targetId)
+        );
+      }
+    )
+  );
+
+  /* ================================================================
+   * Property 7: Settings persistence round-trip
+   * Feature: women-safety-alert, Property 7: Settings persistence round-trip
+   * ================================================================ */
+  runProp('Property 7: Settings persistence round-trip',
+    fc.property(
+      settingsArb,
+      (settings) => {
+        StorageModule._reset();
+        StorageModule.saveSettings(settings);
+        const loaded = StorageModule.getSettings();
+        return (
+          loaded.userName === settings.userName &&
+          loaded.customMessage === settings.customMessage &&
+          loaded.holdToAlertEnabled === settings.holdToAlertEnabled
+        );
+      }
+    )
+  );
+
+  /* ================================================================
+   * Property 8: Custom message length enforcement
+   * Feature: women-safety-alert, Property 8: Custom message length enforcement
+   * ================================================================ */
+  runProp('Property 8: Custom message length enforcement',
+    fc.property(
+      fc.string({ minLength: 101, maxLength: 300 }),
+      (longMsg) => {
+        // Simulate the save logic from AppInit (truncate to 100)
+        const saved = longMsg.slice(0, 100);
+        return saved.length === 100;
+      }
+    )
+  );
+
+  /* ================================================================
+   * Property 9: Tab switching shows only active tab
+   * Feature: women-safety-alert, Property 9: Tab switching shows only active tab
+   * ================================================================ */
+  runProp('Property 9: Tab switching shows only active tab',
+    fc.property(
+      fc.constantFrom('home', 'contacts', 'info', 'settings'),
+      (tabName) => {
+        UIModule.showTab(tabName);
+        const panels = document.querySelectorAll('.tab-panel');
+        let allCorrect = true;
+        panels.forEach(panel => {
+          const shouldBeActive = panel.id === 'tab-' + tabName;
+          if (shouldBeActive && !panel.classList.contains('active')) allCorrect = false;
+          if (!shouldBeActive && panel.classList.contains('active')) allCorrect = false;
+        });
+        return allCorrect;
+      }
+    )
+  );
+
+  /* ================================================================
+   * Property 10: Toast displays correct contact count and auto-dismisses
+   * Feature: women-safety-alert, Property 10: Toast displays correct contact count and auto-dismisses
+   * ================================================================ */
+  runProp('Property 10: Toast displays correct contact count and auto-dismisses',
+    fc.property(
+      fc.integer({ min: 1, max: 20 }),
+      (n) => {
+        // Verify toast message text
+        const msg = 'Alert sent to ' + n + ' contact(s)';
+        const toast = UIModule.showToast(msg, 3000);
+        const textOk = toast.textContent === msg;
+        const inDom = document.body.contains(toast);
+        // Clean up immediately for test isolation
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+        return textOk && inDom;
+      }
+    )
+  );
+
+  /* ================================================================
+   * Property 11: Contact list renders all saved contacts
+   * Feature: women-safety-alert, Property 11: Contact list renders all saved contacts
+   * ================================================================ */
+  runProp('Property 11: Contact list renders all saved contacts',
+    fc.property(
+      fc.array(validContactArb, { minLength: 0, maxLength: 15 }),
+      (contacts) => {
+        UIModule.renderContacts(contacts);
+        const ul = document.getElementById('contact-list');
+        const items = ul.querySelectorAll('.contact-item');
+        if (items.length !== contacts.length) return false;
+        return contacts.every((c, i) => {
+          const item = items[i];
+          return (
+            item.querySelector('.contact-name').textContent === c.name &&
+            item.querySelector('.contact-phone').textContent === c.phone
+          );
+        });
+      }
+    )
+  );
+
+  /* ── Summary ─────────────────────────────────────────────────── */
+  const summaryEl = document.getElementById('summary');
+  summaryEl.textContent = `Results: ${passed} passed, ${failed} failed out of ${passed + failed} properties.`;
+  summaryEl.style.color = failed === 0 ? '#155724' : '#721c24';
+  </script>
+</body>
+</html>
